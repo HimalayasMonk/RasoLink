@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raso Link - Sovereign Node</title>
+    <script src="https://unpkg.com/nostr-tools@1.17.0/lib/nostr.bundle.js" integrity="GwmNxV/GnZt+zRBR/Hhtu5D4MKfbxeJSApW44ARryGYtj3MFheHMFgiEZ7tVnrln" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --bg-window: #070708;
+            --bg-header: #0f0f12;
+            --bg-chat: #131317;
+            --bg-bubble: #1c1c22;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #f7931a;
+            --accent-red: #ef4444;
+            --text-main: #f4f4f5;
+            --text-sub: #8a8a93;
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+            --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-window);
+            color: var(--text-main);
+            font-family: var(--font-apple);
+            -webkit-font-smoothing: antialiased;
+            letter-spacing: -0.01em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 1200px;
+            height: 94vh;
+            background-color: var(--bg-chat);
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .app-header {
+            background-color: var(--bg-header);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 1.25rem 2rem;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .brand-zone { display: flex; flex-direction: column; gap: 0.3rem; }
+        .brand-zone h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+        
+        .status-cluster { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.2rem; }
+        .relay-tag {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle);
+            padding: 0.25rem 0.55rem; border-radius: 6px; font-size: 0.62rem;
+            color: var(--text-sub); font-family: var(--font-mono);
+        }
+        
+        .status-dot { width: 5px; height: 5px; background-color: var(--accent-red); border-radius: 50%; }
+        .status-dot.active { background-color: #10b981; box-shadow: 0 0 6px #10b981; }
+
+        .identity-row { display: flex; align-items: center; gap: 1.25rem; flex: 1; justify-content: flex-end; }
+        .avatar-engine {
+            width: 38px; height: 38px; background: linear-gradient(135deg, var(--accent-orange), var(--accent-purple));
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.95rem; color: #000; flex-shrink: 0;
+        }
+
+        .field-element { display: flex; flex-direction: column; gap: 0.25rem; }
+        .field-element.nickname-field { width: 130px; }
+        .field-element.key-field { max-width: 260px; }
+        label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-sub); font-weight: 700; }
+        
+        .app-header input {
+            background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-subtle);
+            border-radius: 6px; color: var(--text-main); padding: 0.45rem 0.7rem; font-size: 0.8rem;
+        }
+        .app-header input:focus { outline: none; border-color: rgba(255, 255, 255, 0.15); }
+
+        .key-capsule {
+            font-family: var(--font-mono); font-size: 0.7rem; background: rgba(0, 0, 0, 0.25);
+            padding: 0.45rem 0.7rem; border-radius: 6px; border: 1px solid var(--border-subtle);
+            color: var(--accent-orange); cursor: pointer; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+        }
+
+        .crypto-actions { display: flex; gap: 0.5rem; }
+        .btn-utility {
+            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle);
+            color: var(--text-main); padding: 0.45rem 0.75rem; font-size: 0.75rem; border-radius: 6px;
+            cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 0.35rem; transition: all 0.2s;
+        }
+        .btn-utility:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.15); }
+        .btn-clear { color: var(--accent-red); border-color: rgba(239, 68, 68, 0.15); }
+        .btn-clear:hover { background: rgba(239, 68, 68, 0.06); border-color: rgba(239, 68, 68, 0.3); }
+
+        .chat-pane { display: flex; flex-direction: column; flex: 1; overflow: hidden; background-color: var(--bg-chat); }
+        .chat-stream { flex: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem; }
+        
+        .empty-state { margin: auto; text-align: center; color: var(--text-sub); font-size: 0.82rem; max-width: 320px; line-height: 1.6; }
+        
+        .message-row { display: flex; flex-direction: column; align-items: flex-start; max-width: 80%; animation: bubbleFade 0.35s forwards; }
+        @keyframes bubbleFade { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .bubble-meta { font-size: 0.68rem; color: var(--text-sub); margin-bottom: 0.25rem; margin-left: 0.2rem; display: flex; gap: 0.4rem; align-items: center; }
+        .sender-handle { font-weight: 600; color: var(--text-main); }
+        
+        .bubble {
+            background-color: var(--bg-bubble); border: 1px solid var(--border-subtle);
+            padding: 0.8rem 1.15rem; border-radius: 14px; border-top-left-radius: 4px;
+            color: var(--text-main); font-size: 0.92rem; line-height: 1.5; position: relative;
+        }
+        .bubble-subject {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-purple);
+            font-weight: 700; margin-bottom: 0.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.03); padding-bottom: 0.15rem;
+        }
+
+        .composer-control { padding: 1.25rem 2rem 2rem 2rem; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 0.75rem; background-color: var(--bg-chat); }
+        .meta-input-fields { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 0.75rem; }
+        .meta-input-fields input { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-main); padding: 0.6rem 0.85rem; font-size: 0.82rem; }
+        
+        .capsule-input-container { position: relative; display: flex; align-items: center; }
+        .capsule-input-container input {
+            width: 100%; background: #1f1f25; border: 1px solid var(--border-subtle);
+            border-radius: 24px; padding: 0.8rem 3.5rem 0.8rem 1.25rem; color: var(--text-main); font-size: 0.92rem;
+        }
+        .capsule-input-container input:focus { outline: none; border-color: rgba(255, 255, 255, 0.15); }
+        .action-send-trigger {
+            position: absolute; right: 6px; background: #ffffff; color: #000000; border: none;
+            width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        @media (max-width: 980px) { .app-header { flex-direction: column; align-items: flex-start; gap: 1rem; padding: 1rem; } .identity-row { width: 100%; justify-content: flex-start; } .app-container { height: 100vh; border-radius: 0; border: none; } body { padding: 0; } }
+        @media (max-width: 640px) { .identity-row { flex-wrap: wrap; gap: 0.75rem; } .field-element.nickname-field { width: calc(50% - 25px); } .field-element.key-field { width: 50%; } .crypto-actions { width: 100%; justify-content: flex-start; } .meta-input-fields { grid-template-columns: 1fr; gap: 0.5rem; } }
+        .bubble:hover .delete-msg-btn { opacity: 1 !important; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header class="app-header">
+            <div class="brand-zone">
+                <h1>Raso Link</h1>
+                <div class="status-cluster" id="relay-status-cluster"></div>
+                <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem; width: 100%; max-width: 240px;">
+                    <input type="text" id="custom-relay-input" placeholder="wss://add-new-relay.com" style="flex: 1; padding: 0.25rem 0.5rem; font-size: 0.68rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text-main);">
+                    <button onclick="registerCustomRelayNode()" style="background: var(--accent-purple); border: none; border-radius: 4px; color: #fff; font-size: 0.68rem; padding: 0 0.6rem; cursor: pointer; font-weight: 600;">+ Add</button>
+                </div>
+            </div>
+
+            <div class="identity-row">
+                <div class="avatar-engine" id="avatar-preview">A</div>
+                <div class="field-element nickname-field">
+                    <label>Nickname</label>
+                    <input type="text" id="my-name" value="Anonymous" oninput="executeAvatarSync()">
+                </div>
+                <div class="field-element key-field">
+                    <label>Sovereign Identity Key (NPUB)</label>
+                    <div id="my-pub" class="key-capsule" title="Click to copy key">Awaiting Unlock...</div>
+                </div>
+
+                <div class="crypto-actions">
+                    <button class="btn-utility" onclick="document.getElementById('import-file-upload').click()" title="Restore from secure file">📂 Import</button>
+                    <input type="file" id="import-file-upload" accept=".json" style="display: none;" onchange="importEncryptedKeypair(event)">
+                    <button class="btn-utility" onclick="exportEncryptedKeypair()" title="Secure Export via Passphrase">💾 Export</button>
+                    <button class="btn-utility btn-clear" onclick="clearActiveChatScreen()" title="Clear Terminal View">🗑️ Clear</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="chat-pane">
+            <div id="chat-stream-root" class="chat-stream">
+                <div class="empty-state" id="stream-empty-state">
+                    Vault is sealed. <br><br>Authenticate to mount your cryptographic coordinate and begin secure communications.
+                </div>
+            </div>
+
+            <div class="emergency-p2p-panel" style="padding: 1rem 2rem; border-top: 1px solid var(--border-subtle); background: rgba(247, 147, 26, 0.02); display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="color: var(--accent-orange); font-weight: 700;">🚨 Emergency P2P Mesh Link (WebRTC Fallback)</label>
+                    <span id="p2p-status" style="font-size: 0.65rem; font-family: var(--font-mono); color: var(--text-sub); font-weight: bold;">Status: Offline</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; width: 100%;">
+                    <button class="btn-utility" onclick="initiateP2PConnection()" style="font-size: 0.68rem; padding: 0.35rem 0.6rem;">1. Generate Local Offer</button>
+                    <input type="text" id="p2p-signal-data" placeholder="Paste Remote Peer Connection Token..." style="flex: 1; min-width: 180px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-main); padding: 0.35rem 0.6rem; font-size: 0.72rem;">
+                    <button class="btn-utility" onclick="consumeP2PSignal()" style="font-size: 0.68rem; padding: 0.35rem 0.6rem; background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.3);">2. Inject Remote Token</button>
+                </div>
+            </div>
+
+            <div class="composer-control">
+                <div class="meta-input-fields">
+                    <input type="text" id="target-name" placeholder="Recipient Name">
+                    <input type="text" id="mail-subject" placeholder="Subject">
+                    <input type="text" id="target-pub" placeholder="Destination NPUB or Hex Key">
+                </div>
+                
+                <div class="capsule-input-container">
+                    <input type="text" id="mail-content" placeholder="Type signed transmission payload..." onkeydown="if(event.key === 'Enter') transmitDataPacket()">
+                    <button class="action-send-trigger" onclick="transmitDataPacket()">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3">
+                            <path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- 1. SECURE IN-MEMORY VAULT ---
+        let privKey = null;
+        let pubKeyHex = null;
+        let pubKeyNpub = null;
+        
+        const PROCESSED_EVENTS_REGISTRY = new Set();
+        const RENDERED_MESSAGES_REGISTRY = new Set();
+        const DOM_CEILING_LIMIT = 75;
+        
+        const RELAY_CLUSTER_POOL = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.snort.social'];
+        let networkSockets = {};
+
+        // WebRTC State
+        let localPeerConnection = null;
+        let p2pDataChannel = null;
+
+        // PBKDF2 + AES-GCM Key Derivation
+        async function deriveSessionKey(passphrase, salt) {
+            const encoder = new TextEncoder();
+            const baseKey = await crypto.subtle.importKey(
+                "raw", encoder.encode(passphrase), { name: "PBKDF2" }, false, ["deriveKey"]
+            );
+            return crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+            );
+        }
+
+        async function initializeIdentityVault() {
+            // Purge legacy plaintext vulnerability if it exists
+            if (localStorage.getItem('raso_link_privkey')) {
+                localStorage.removeItem('raso_link_privkey');
+                console.warn("Legacy plaintext key purged.");
+            }
+
+            const storedVault = localStorage.getItem('raso_secure_vault');
+            
+            if (storedVault) {
+                const vault = JSON.parse(storedVault);
+                const passphrase = prompt("Enter your session passphrase to unlock your identity:");
+                if (!passphrase) {
+                    alert("Authentication aborted. Reload to try again.");
+                    return;
+                }
+                
+                try {
+                    const salt = new Uint8Array(atob(vault.salt).split('').map(c => c.charCodeAt(0)));
+                    const iv = new Uint8Array(atob(vault.iv).split('').map(c => c.charCodeAt(0)));
+                    const ciphertext = new Uint8Array(atob(vault.ciphertext).split('').map(c => c.charCodeAt(0)));
+                    
+                    const sessionKey = await deriveSessionKey(passphrase, salt);
+                    const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, sessionKey, ciphertext);
+                    privKey = new TextDecoder().decode(decryptedBuffer);
+                } catch (e) {
+                    alert("Decryption failed. Invalid passphrase or corrupted vault.");
+                    return;
+                }
+            } else {
+                const passphrase = prompt("INITIALIZATION: Create a master passphrase to secure your local node:");
+                if (!passphrase || passphrase.length < 8) {
+                    alert("Passphrase must be at least 8 characters. Reload to try again.");
+                    return;
+                }
+                
+                privKey = NostrTools.generatePrivateKey();
+                const encoder = new TextEncoder();
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                
+                const sessionKey = await deriveSessionKey(passphrase, salt);
+                const cipherBuffer = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, sessionKey, encoder.encode(privKey));
+                
+                const vault = {
+                    salt: btoa(String.fromCharCode(...salt)),
+                    iv: btoa(String.fromCharCode(...iv)),
+                    ciphertext: btoa(String.fromCharCode(...new Uint8Array(cipherBuffer)))
+                };
+                localStorage.setItem('raso_secure_vault', JSON.stringify(vault));
+            }
+
+            pubKeyHex = NostrTools.getPublicKey(privKey);
+            pubKeyNpub = NostrTools.nip19.npubEncode(pubKeyHex);
+            
+            const pubDisplayElement = document.getElementById('my-pub');
+            pubDisplayElement.innerText = pubKeyNpub;
+            pubDisplayElement.onclick = () => {
+                navigator.clipboard.writeText(pubKeyNpub);
+                const originalValue = pubDisplayElement.innerText;
+                pubDisplayElement.innerText = "NPUB COPIED TO SECURE CLIPBOARD";
+                setTimeout(() => pubDisplayElement.innerText = originalValue, 1200);
+            };
+
+            document.getElementById('stream-empty-state').innerHTML = "Vault unlocked. Awaiting network packets.";
+            initializeMeshNetwork();
+        }
+
+        // --- 2. UI & MESH NETWORK LOGIC ---
+        function executeAvatarSync() {
+            const currentText = document.getElementById('my-name').value.trim();
+            document.getElementById('avatar-preview').innerText = currentText ? currentText.substring(0, 1).toUpperCase() : "Ω";
+        }
+        executeAvatarSync();
+
+        function initializeMeshNetwork() {
+            if (!privKey) return;
+            const clusterContainer = document.getElementById('relay-status-cluster');
+            clusterContainer.innerHTML = '';
+            RELAY_CLUSTER_POOL.forEach(url => {
+                const tag = document.createElement('div');
+                tag.className = 'relay-tag';
+                tag.id = `relay-${btoa(url).replace(/=/g, '')}`;
+                tag.innerHTML = `<div class="status-dot"></div> <span>${url.replace('wss://', '')}</span>`;
+                clusterContainer.appendChild(tag);
+                connectToClusterNode(url);
+            });
+        }
+
+        function connectToClusterNode(url) {
+            const socketNode = new WebSocket(url);
+            const internalNodeId = `relay-${btoa(url).replace(/=/g, '')}`;
+            
+            socketNode.onopen = () => {
+                networkSockets[url] = socketNode;
+                const domesticTag = document.getElementById(internalNodeId);
+                if (domesticTag) domesticTag.querySelector('.status-dot').className = 'status-dot active';
+                const subId = "raso_sub_" + Math.random().toString(36).substring(7);
+                socketNode.send(JSON.stringify(["REQ", subId, { kinds: [4], "#p": [pubKeyHex] }]));
+            };
+
+            socketNode.onmessage = async (msgFrame) => {
+                try {
+                    const dataPacket = JSON.parse(msgFrame.data);
+                    if (dataPacket[0] === "EVENT") executePacketIngestion(dataPacket[2]);
+                } catch(err) {}
+            };
+
+            socketNode.onclose = () => {
+                delete networkSockets[url];
+                const domesticTag = document.getElementById(internalNodeId);
+                if (domesticTag) domesticTag.querySelector('.status-dot').className = 'status-dot';
+                setTimeout(() => connectToClusterNode(url), 5000);
+            };
+        }
+
+        // --- 3. EMERGENCY AD-HOC P2P MESH INTERNALS ---
+        function createPeerConnectionInstance() {
+            if (localPeerConnection) try { localPeerConnection.close(); } catch(e) {}
+            localPeerConnection = new RTCPeerConnection({
+                iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' } ]
+            });
+
+            localPeerConnection.oniceconnectionstatechange = () => {
+                const statusPill = document.getElementById('p2p-status');
+                const state = localPeerConnection.iceConnectionState;
+                statusPill.innerText = `Status: ICE ${state.toUpperCase()}`;
+                if (state === "connected") statusPill.style.color = "#10b981";
+                else if (state === "failed" || state === "disconnected") statusPill.style.color = "var(--accent-red)";
+                else statusPill.style.color = "var(--accent-orange)";
+            };
+
+            localPeerConnection.onicecandidate = (event) => {
+                const tokenInput = document.getElementById('p2p-signal-data');
+                const statusPill = document.getElementById('p2p-status');
+                if (event.candidate === null) {
+                    tokenInput.value = btoa(JSON.stringify(localPeerConnection.localDescription));
+                    statusPill.innerText = "Status: Token Ready (COPY NOW)";
+                    statusPill.style.color = "var(--accent-purple)";
+                } else {
+                    tokenInput.value = "Gathering network routes... please wait.";
+                    statusPill.innerText = "Status: Routing ICE Coordinates...";
+                }
+            };
+        }
+
+        function initiateP2PConnection() {
+            createPeerConnectionInstance();
+            p2pDataChannel = localPeerConnection.createDataChannel("raso_mesh_fallback");
+            bindMeshChannelSignaling(p2pDataChannel);
+            localPeerConnection.createOffer()
+                .then(desc => localPeerConnection.setLocalDescription(desc))
+                .catch(() => alert("P2P Error: Failed to build negotiation offer mapping."));
+        }
+
+        function consumeP2PSignal() {
+            const stringToken = document.getElementById('p2p-signal-data').value.trim();
+            if (!stringToken || stringToken.startsWith("Gathering")) return alert("Wait for complete token or paste valid target.");
+            try {
+                const structuralMeta = JSON.parse(atob(stringToken));
+                if (structuralMeta.type === "offer") {
+                    createPeerConnectionInstance();
+                    localPeerConnection.ondatachannel = (event) => {
+                        p2pDataChannel = event.channel;
+                        bindMeshChannelSignaling(p2pDataChannel);
+                    };
+                    localPeerConnection.setRemoteDescription(new RTCSessionDescription(structuralMeta))
+                        .then(() => localPeerConnection.createAnswer())
+                        .then(answer => localPeerConnection.setLocalDescription(answer))
+                        .catch(() => alert("P2P Handshake Failure"));
+                } else if (structuralMeta.type === "answer") {
+                    if (!localPeerConnection) return alert("Local session missing. Generate offer first.");
+                    localPeerConnection.setRemoteDescription(new RTCSessionDescription(structuralMeta)).catch(() => alert("Handshake Error"));
+                }
+            } catch (err) { alert("P2P Ingestion Failure: Unable to decode token."); }
+        }
+
+        function bindMeshChannelSignaling(channel) {
+            channel.onopen = () => {
+                const statusPill = document.getElementById('p2p-status');
+                statusPill.innerText = "Status: Connected (Direct P2P)";
+                statusPill.style.color = "#10b981";
+            };
+            channel.onclose = () => {
+                const statusPill = document.getElementById('p2p-status');
+                statusPill.innerText = "Status: Offline";
+                statusPill.style.color = "var(--text-sub)";
+            };
+            channel.onmessage = (msg) => {
+                try {
+                    // Unified pipeline: Push incoming P2P payload directly into ingestion engine
+                    const packetData = JSON.parse(msg.data);
+                    if (packetData[0] === "EVENT") executePacketIngestion(packetData[1]);
+                } catch(e) {}
+            };
+        }
+
+        // --- 4. ENCRYPTION & TRANSMISSION PIPELINE ---
+        async function transmitDataPacket() {
+            if (!privKey) return alert("Vault locked.");
+            const targetInput = document.getElementById('target-pub').value.trim();
+            const messageBody = document.getElementById('mail-content').value;
+            const senderName = document.getElementById('my-name').value.trim() || "Anonymous";
+            const recipientName = document.getElementById('target-name').value.trim() || "Peer";
+            const subjectLine = document.getElementById('mail-subject').value.trim() || "Encrypted Note";
+
+            if (!targetInput || !messageBody) return;
+
+            // NIP-19 Resolution
+            let destinationHexKey;
+            try {
+                if (targetInput.startsWith('npub')) {
+                    destinationHexKey = NostrTools.nip19.decode(targetInput).data;
+                } else {
+                    destinationHexKey = targetInput;
+                }
+            } catch (e) {
+                return alert("Routing Error: Invalid destination key format.");
+            }
+
+            try {
+                const uniqueMsgId = "msg_" + Math.random().toString(36).substring(2) + "_" + Date.now();
+                const envelopePayload = { msgId: uniqueMsgId, sender: senderName, recipient: recipientName, subject: subjectLine, body: messageBody };
+
+                // Robust Encryption Block (Tries NIP-44, falls back to standard NIP-04)
+                let encryptedBox;
+                try {
+                    if (NostrTools.nip44 && typeof NostrTools.nip44.getSharedSecret === 'function') {
+                         const sharedSecret = NostrTools.nip44.getSharedSecret(privKey, destinationHexKey);
+                         encryptedBox = NostrTools.nip44.encrypt(sharedSecret, JSON.stringify(envelopePayload));
+                    } else {
+                        throw new Error("NIP-44 API undefined in this library version");
+                    }
+                } catch(err) {
+                    encryptedBox = await NostrTools.nip04.encrypt(privKey, destinationHexKey, JSON.stringify(envelopePayload));
+                }
+
+                let event = {
+                    kind: 4,
+                    pubkey: pubKeyHex,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [['p', destinationHexKey]],
+                    content: encryptedBox
+                };
+
+                event.id = NostrTools.getEventHash(event);
+                event.sig = NostrTools.signEvent(event, privKey);
+
+                let deliverySuccessful = false;
+                const payloadString = JSON.stringify(["EVENT", event]);
+
+                Object.keys(networkSockets).forEach(nodeUrl => {
+                    if (networkSockets[nodeUrl].readyState === WebSocket.OPEN) {
+                        networkSockets[nodeUrl].send(payloadString);
+                        deliverySuccessful = true;
+                    }
+                });
+
+                // Cypherpunk WebRTC: Send the cryptographically signed event, not plain JSON
+                if (p2pDataChannel && p2pDataChannel.readyState === "open") {
+                    p2pDataChannel.send(JSON.stringify(["EVENT", event]));
+                    deliverySuccessful = true;
+                }
+
+                if (deliverySuccessful) {
+                    document.getElementById('mail-content').value = "";
+                    injectMessageChronologically(envelopePayload, event.created_at);
+                } else {
+                    alert("Transmission Network Error: All routing pathways offline.");
+                }
+
+            } catch (err) { console.error("Encryption Fault:", err); }
+        }
+
+        async function executePacketIngestion(eventPacket) {
+            if (PROCESSED_EVENTS_REGISTRY.has(eventPacket.id)) return;
+            PROCESSED_EVENTS_REGISTRY.add(eventPacket.id);
+            if (PROCESSED_EVENTS_REGISTRY.size > 5000) {
+                const iterator = PROCESSED_EVENTS_REGISTRY.values();
+                for (let i = 0; i < 1000; i++) PROCESSED_EVENTS_REGISTRY.delete(iterator.next().value);
+            }
+
+            try {
+                const peerOriginPubKey = eventPacket.pubkey;
+                let clearTextContent;
+                
+                // Try NIP-44 decryption, fallback to NIP-04
+                try {
+                    if (NostrTools.nip44 && typeof NostrTools.nip44.getSharedSecret === 'function') {
+                         const sharedSecret = NostrTools.nip44.getSharedSecret(privKey, peerOriginPubKey);
+                         clearTextContent = NostrTools.nip44.decrypt(sharedSecret, eventPacket.content);
+                    } else {
+                         throw new Error("NIP-44 missing");
+                    }
+                } catch (e) {
+                    clearTextContent = await NostrTools.nip04.decrypt(privKey, peerOriginPubKey, eventPacket.content);
+                }
+                
+                let unpackedMail;
+                try {
+                    unpackedMail = JSON.parse(clearTextContent);
+                } catch(jsonErr) {
+                    unpackedMail = { msgId: eventPacket.id, sender: `Node (${peerOriginPubKey.substring(0, 5)})`, recipient: "You", subject: "Direct Packet", body: clearTextContent };
+                }
+
+                injectMessageChronologically(unpackedMail, eventPacket.created_at);
+            } catch (cryptoErr) {}
+        }
+
+        function injectMessageChronologically(mail, timestamp) {
+            if (mail.msgId && RENDERED_MESSAGES_REGISTRY.has(mail.msgId)) return;
+            if (mail.msgId) {
+                RENDERED_MESSAGES_REGISTRY.add(mail.msgId);
+                if (RENDERED_MESSAGES_REGISTRY.size > 5000) {
+                    const iterator = RENDERED_MESSAGES_REGISTRY.values();
+                    for (let i = 0; i < 1000; i++) RENDERED_MESSAGES_REGISTRY.delete(iterator.next().value);
+                }
+            }
+
+            const streamRoot = document.getElementById('chat-stream-root');
+            const placeholder = document.getElementById('stream-empty-state');
+            if (placeholder) placeholder.remove();
+
+            const timeStr = new Date(timestamp * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            const elementRow = document.createElement('div');
+            elementRow.className = 'message-row';
+            elementRow.setAttribute('data-timestamp', timestamp);
+
+            elementRow.innerHTML = `
+                <div class="bubble-meta"><span class="sender-handle">${escapeText(mail.sender)}</span> <span>•</span> <span>${timeStr}</span></div>
+                <div class="bubble">
+                    <div class="bubble-subject">${escapeText(mail.subject)}</div>
+                    <div>${escapeText(mail.body)}</div>
+                    <span class="delete-msg-btn" onclick="this.closest('.message-row').remove();" style="position: absolute; right: 8px; top: 4px; font-size: 0.65rem; color: var(--accent-red); cursor: pointer; opacity: 0; transition: opacity 0.15s;" title="Unsend (Prune view)">✕</span>
+                </div>
+            `;
+
+            const currentNodes = streamRoot.querySelectorAll('.message-row');
+            let placed = false;
+            for (let i = 0; i < currentNodes.length; i++) {
+                if (timestamp < parseInt(currentNodes[i].getAttribute('data-timestamp'))) {
+                    streamRoot.insertBefore(elementRow, currentNodes[i]); placed = true; break;
+                }
+            }
+            if (!placed) streamRoot.appendChild(elementRow);
+            
+            if (streamRoot.querySelectorAll('.message-row').length > DOM_CEILING_LIMIT) streamRoot.querySelector('.message-row').remove();
+            streamRoot.scrollTop = streamRoot.scrollHeight;
+        }
+
+        function escapeText(text) { const node = document.createElement('div'); node.textContent = text; return node.innerHTML; }
+        
+        function clearActiveChatScreen() {
+            document.getElementById('chat-stream-root').innerHTML = `<div class="empty-state" id="stream-empty-state">Terminal screen cleared successfully. In-memory data caches wiped.</div>`;
+            PROCESSED_EVENTS_REGISTRY.clear(); RENDERED_MESSAGES_REGISTRY.clear();
+        }
+
+        async function exportEncryptedKeypair() {
+            const passphrase = prompt("Enter a master passphrase to secure your private key file export:");
+            if (!passphrase || passphrase.length < 4) {
+                alert("Export Aborted: Passphrase must be at least 4 characters long.");
+                return;
+            }
+
+            try {
+                const encoder = new TextEncoder();
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                
+                const baseKey = await crypto.subtle.importKey(
+                    "raw", encoder.encode(passphrase), { name: "PBKDF2" }, false, ["deriveKey"]
+                );
+                const cryptoAesKey = await crypto.subtle.deriveKey(
+                    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                    baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt"]
+                );
+
+                const initializationVector = crypto.getRandomValues(new Uint8Array(12));
+                const cipherBuffer = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: initializationVector },
+                    cryptoAesKey, encoder.encode(privKey)
+                );
+
+                const exportPayload = {
+                    salt: btoa(String.fromCharCode(...salt)),
+                    iv: btoa(String.fromCharCode(...initializationVector)),
+                    ciphertext: btoa(String.fromCharCode(...new Uint8Array(cipherBuffer))),
+                    associatedPublicKey: pubKeyHex,
+                    exportTimestamp: Math.floor(Date.now() / 1000)
+                };
+
+                const dynamicBlob = new Blob([JSON.stringify(exportPayload, null, 4)], { type: "application/json" });
+                const transientAnchor = document.createElement("a");
+                transientAnchor.href = URL.createObjectURL(dynamicBlob);
+                transientAnchor.download = `raso-link-identity-${pubKeyHex.substring(0, 8)}.json`;
+                transientAnchor.click();
+
+            } catch (err) {
+                console.error("Cryptographic Export Error:", err);
+                alert("Export Fault: Local crypto processing engine failed.");
+            }
+        }
+
+        async function importEncryptedKeypair(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const vaultData = JSON.parse(e.target.result);
+                    if (!vaultData.salt || !vaultData.iv || !vaultData.ciphertext) throw new Error("Invalid vault structure");
+
+                    const passphrase = prompt("Enter the master passphrase used to encrypt this backup:");
+                    if (!passphrase) return;
+
+                    const salt = new Uint8Array(atob(vaultData.salt).split('').map(c => c.charCodeAt(0)));
+                    const iv = new Uint8Array(atob(vaultData.iv).split('').map(c => c.charCodeAt(0)));
+                    const ciphertext = new Uint8Array(atob(vaultData.ciphertext).split('').map(c => c.charCodeAt(0)));
+
+                    const sessionKey = await deriveSessionKey(passphrase, salt);
+                    const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, sessionKey, ciphertext);
+                    
+                    privKey = new TextDecoder().decode(decryptedBuffer);
+                    
+                    // Overwrite local secure vault with the imported one
+                    localStorage.setItem('raso_secure_vault', JSON.stringify(vaultData));
+                    
+                    alert("Identity successfully restored. Reloading terminal.");
+                    location.reload(); 
+                } catch (err) {
+                    console.error(err);
+                    alert("Import Failed: Incorrect passphrase or corrupted file.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- 5. INITIALIZATION HOOK ---
+        window.onload = () => { setTimeout(initializeIdentityVault, 250); };
+
+    </script>
+</body>
+</html>
